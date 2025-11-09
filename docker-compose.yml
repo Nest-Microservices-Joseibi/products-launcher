@@ -1,0 +1,57 @@
+version: "3.8"
+services:
+  nats-server:
+    image: nats:2.12-alpine3.22
+    ports:
+      - "${NATS_PORT_ADMIN_PANEL}:${NATS_PORT_ADMIN_PANEL}"
+      - "${NATS_PORT}:${NATS_PORT}"
+  client-gateway:
+    build: ./client-gateway
+    ports:
+      - "${CLIENT_GATEWAY_PORT}:${CLIENT_GATEWAY_PORT}"
+    volumes:
+      - ./client-gateway/src:/usr/src/app/src
+    command: npm run start:dev
+    environment:
+      - PORT=${CLIENT_GATEWAY_PORT}
+      - NATS_SERVERS=${NATS_SERVERS}
+
+  product-ms:
+    build: ./products-ms
+    volumes:
+      - ./products-ms/src:/usr/src/app/src
+    command: npm run start:dev
+    environment:
+      - PORT=${PRODUCTSMS_PORT}
+      - NATS_SERVERS=${NATS_SERVERS}
+      - DATABASE_URL=file:./dev.db
+
+  orders-ms:
+    build: ./orders-ms
+    volumes:
+      - ./orders-ms/src:/usr/src/app/src
+    command: npm run start:dev
+    environment:
+      - PORT=3002
+      - NATS_SERVERS=nats://nats-server:4222
+      - DATABASE_URL=postgresql://postgres:123456@orders-db:5432/ordersdb?schema=public
+    depends_on:
+      - orders-db
+    ports:
+      - "${ORDERSMS_PORT}:${ORDERSMS_PORT}"
+
+  orders-db:
+    image: postgres:16.2
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+      - PGDATA=${PGDATA}
+    volumes:
+      - orders_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  orders_pgdata:
+    driver: local
